@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>FlashLearn - 間隔反復学習アプリ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Noto Sans JP',-apple-system,BlinkMacSystemFont,sans-serif;background:#0f0f0f;color:#fff;min-height:100vh}
+    .loading-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px}
+    .loading-spinner{width:48px;height:48px;border:3px solid rgba(99,102,241,.2);border-top-color:#6366f1;border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .login-container{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(135deg,#0f0f0f,#1a1a2e)}
+    .login-card{width:100%;max-width:380px;padding:48px 32px;border-radius:24px;background:rgba(255,255,255,.05);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.1)}
+    .logo-container{text-align:center;margin-bottom:40px}
+    .logo{width:72px;height:72px;border-radius:20px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;box-shadow:0 8px 32px rgba(99,102,241,.3)}
+    .logo svg{width:36px;height:36px;color:#fff}
+    .app-title{font-size:32px;font-weight:700;margin:0 0 8px;background:linear-gradient(135deg,#fff,#a5b4fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .app-subtitle{font-size:14px;color:rgba(255,255,255,.5)}
+    .google-button{width:100%;padding:16px 24px;font-size:16px;font-weight:600;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.05);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;transition:.2s}
+    .google-button:hover{background:rgba(255,255,255,.1)}
+    .google-button svg{width:20px;height:20px}
+    .app-container{min-height:100vh;display:none}
+    .app-container.active{display:block}
+    .screen{min-height:100vh;padding:24px;padding-bottom:100px;display:none}
+    .screen.active{display:block}
+    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px}
+    .greeting{font-size:14px;color:rgba(255,255,255,.5)}
+    .user-name{font-size:28px;font-weight:700;margin:4px 0 0}
+    .header-right{display:flex;align-items:center;gap:12px}
+    .streak-badge{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:20px;background:rgba(249,115,22,.15);color:#f97316;font-weight:600}
+    .icon-button{width:40px;height:40px;border-radius:12px;border:none;background:rgba(255,255,255,.05);color:rgba(255,255,255,.6);cursor:pointer;display:flex;align-items:center;justify-content:center}
+    .icon-button:hover{background:rgba(255,255,255,.1);color:#fff}
+    .study-card{position:relative;border-radius:24px;padding:32px;margin-bottom:24px;overflow:hidden;background:linear-gradient(135deg,#6366f1,#8b5cf6)}
+    .study-card-content{position:relative;z-index:1}
+    .study-card-bg{position:absolute;top:-50%;right:-20%;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,.1)}
+    .due-number{font-size:56px;font-weight:700;display:block;line-height:1}
+    .due-label{font-size:16px;opacity:.8}
+    .due-info{margin-bottom:20px}
+    .study-button{display:inline-flex;align-items:center;gap:10px;padding:14px 28px;font-size:16px;font-weight:600;border-radius:12px;border:none;background:#fff;color:#6366f1;cursor:pointer}
+    .study-button:disabled{opacity:.5;cursor:not-allowed}
+    .stats-row{display:flex;gap:12px;margin-bottom:32px}
+    .stat-box{flex:1;padding:16px;border-radius:16px;background:rgba(255,255,255,.05);text-align:center}
+    .stat-number{font-size:24px;font-weight:700;display:block}
+    .stat-label{font-size:12px;color:rgba(255,255,255,.5)}
+    .action-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .action-card{padding:20px 12px;border-radius:16px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:10px}
+    .action-icon{width:40px;height:40px;border-radius:12px;background:rgba(99,102,241,.15);color:#818cf8;display:flex;align-items:center;justify-content:center}
+    .action-label{font-size:12px;font-weight:500;color:rgba(255,255,255,.8);text-align:center}
+    .sub-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px}
+    .back-button{width:40px;height:40px;border-radius:12px;border:none;background:rgba(255,255,255,.05);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center}
+    .sub-title{font-size:20px;font-weight:600}
+    .create-form{display:flex;flex-direction:column;gap:20px}
+    .input-group{display:flex;flex-direction:column;gap:8px}
+    .input-group label{font-size:14px;font-weight:500;color:rgba(255,255,255,.7)}
+    .input-group textarea,.input-group input,.input-group select{width:100%;padding:14px;font-size:16px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;outline:none;resize:none;font-family:inherit}
+    .input-group select option{background:#1a1a2e;color:#fff}
+    .checkbox-group{display:flex;align-items:center;gap:12px;padding:14px;border-radius:12px;background:rgba(255,255,255,.05);cursor:pointer}
+    .checkbox-group input{width:20px;height:20px;cursor:pointer}
+    .checkbox-group span{font-size:14px}
+    .image-upload{border:2px dashed rgba(255,255,255,.2);border-radius:12px;padding:24px;text-align:center;cursor:pointer;transition:.2s}
+    .image-upload:hover{border-color:rgba(99,102,241,.5);background:rgba(99,102,241,.05)}
+    .image-upload.has-image{border-style:solid;border-color:rgba(34,197,94,.5)}
+    .image-preview{max-width:100%;max-height:200px;border-radius:8px;margin-top:12px}
+    .primary-button{padding:16px 32px;font-size:16px;font-weight:600;border-radius:12px;border:none;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;cursor:pointer;box-shadow:0 4px 16px rgba(99,102,241,.3)}
+    .primary-button:disabled{opacity:.5;cursor:not-allowed}
+    .card-list{display:flex;flex-direction:column;gap:12px}
+    .card-item{display:flex;align-items:center;padding:16px;border-radius:12px;background:rgba(255,255,255,.05)}
+    .card-item-content{flex:1;min-width:0}
+    .card-front{font-size:15px;font-weight:500;margin:0 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .card-back{font-size:13px;color:rgba(255,255,255,.5);margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .card-badges{display:flex;gap:6px;margin-top:6px}
+    .badge{font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(99,102,241,.2);color:#a5b4fc}
+    .badge.shared{background:rgba(34,197,94,.2);color:#86efac}
+    .card-thumb{width:50px;height:50px;border-radius:8px;object-fit:cover;margin-right:12px}
+    .delete-button{width:36px;height:36px;border-radius:8px;border:none;background:rgba(239,68,68,.1);color:#ef4444;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:12px}
+    .empty-state{text-align:center;padding:48px 24px;color:rgba(255,255,255,.5)}
+    .study-screen{min-height:100vh;display:flex;flex-direction:column;padding:24px;background:#0f0f0f}
+    .study-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+    .quit-button{padding:8px 16px;font-size:14px;border-radius:8px;border:none;background:rgba(255,255,255,.1);color:#fff;cursor:pointer}
+    .progress-bar{height:4px;border-radius:2px;background:rgba(255,255,255,.1);margin-bottom:32px;overflow:hidden}
+    .progress-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,#6366f1,#8b5cf6);transition:width .3s}
+    .flashcard-container{flex:1;display:flex;align-items:center;justify-content:center;cursor:pointer}
+    .flashcard{width:100%;max-width:400px;min-height:300px;padding:32px;border-radius:24px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+    .flashcard-image{max-width:100%;max-height:150px;border-radius:12px;margin-bottom:16px}
+    .flashcard-text{font-size:24px;font-weight:600;line-height:1.4}
+    .tap-hint{font-size:14px;color:rgba(255,255,255,.3);margin-top:24px}
+    .flashcard-question{font-size:18px;color:rgba(255,255,255,.6)}
+    .flashcard-divider{width:60px;height:2px;background:rgba(255,255,255,.1);margin:20px 0}
+    .flashcard-answer{font-size:24px;font-weight:600;color:#22c55e;line-height:1.4}
+    .answer-buttons{display:flex;gap:12px;padding-top:24px}
+    .answer-button{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px;border-radius:16px;border:none;font-size:14px;font-weight:600;cursor:pointer}
+    .again-button{background:rgba(239,68,68,.15);color:#ef4444}
+    .good-button{background:rgba(34,197,94,.15);color:#22c55e}
+    .easy-button{background:rgba(59,130,246,.15);color:#60a5fa}
+    .interval-hint{font-size:11px;opacity:.7}
+    .complete-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .complete-content{text-align:center;width:100%;max-width:360px}
+    .complete-icon{font-size:64px;margin-bottom:24px}
+    .complete-title{font-size:28px;font-weight:700;margin:0 0 32px}
+    .result-card{display:flex;justify-content:center;align-items:center;padding:24px;border-radius:16px;background:rgba(255,255,255,.05);margin-bottom:32px}
+    .result-item{display:flex;flex-direction:column;align-items:center;padding:0 24px}
+    .result-number{font-size:36px;font-weight:700}
+    .result-label{font-size:14px;color:rgba(255,255,255,.5);margin-top:4px}
+    .result-divider{width:1px;height:48px;background:rgba(255,255,255,.1)}
+    .settings-section{background:rgba(255,255,255,.05);border-radius:16px;padding:20px;margin-bottom:20px}
+    .settings-title{font-size:16px;font-weight:600;margin-bottom:16px}
+    .settings-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+    .settings-row:last-child{border:none}
+    .settings-label{font-size:14px}
+    .settings-input{width:80px;padding:8px;font-size:14px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#fff;text-align:center}
+    .tabs{display:flex;gap:8px;margin-bottom:24px}
+    .tab{flex:1;padding:12px;border-radius:12px;border:none;background:rgba(255,255,255,.05);color:rgba(255,255,255,.6);font-size:14px;font-weight:500;cursor:pointer}
+    .tab.active{background:rgba(99,102,241,.2);color:#a5b4fc}
+    .shared-card{border:1px solid rgba(34,197,94,.3)}
+    .shared-card .card-item-content{padding-left:8px;border-left:3px solid #22c55e}
+    .toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(100px);padding:12px 24px;border-radius:12px;background:rgba(34,197,94,.9);color:#fff;font-weight:500;opacity:0;transition:.3s;z-index:1000}
+    .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+    .hidden{display:none!important}
+    @media(max-width:400px){.action-grid{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body>
+  <div id="loading-screen" class="loading-screen"><div class="loading-spinner"></div><p>読み込み中...</p></div>
+  
+  <div id="login-screen" class="login-container hidden">
+    <div class="login-card">
+      <div class="logo-container">
+        <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a4 4 0 00-4 4c0 1.5.8 2.8 2 3.5V12H8a4 4 0 00-4 4c0 2.2 1.8 4 4 4h8c2.2 0 4-1.8 4-4a4 4 0 00-4-4h-2V9.5c1.2-.7 2-2 2-3.5a4 4 0 00-4-4z"/><circle cx="9" cy="9" r="1" fill="currentColor"/><circle cx="15" cy="9" r="1" fill="currentColor"/></svg></div>
+        <h1 class="app-title">FlashLearn</h1>
+        <p class="app-subtitle">間隔反復で効率的に学習</p>
+      </div>
+      <button id="google-login-btn" class="google-button">
+        <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Googleでログイン
+      </button>
+    </div>
+  </div>
+
+  <div id="app-container" class="app-container">
+    <!-- ホーム画面 -->
+    <div id="home-screen" class="screen active">
+      <header class="header">
+        <div><p class="greeting">おかえりなさい</p><h1 class="user-name" id="user-name">ユーザー</h1></div>
+        <div class="header-right">
+          <div class="streak-badge"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-1 4-4 6-4 10a6 6 0 0012 0c0-4-3-6-4-10-1 2-3 3-4 3s-3-1-4-3z"/></svg><span id="streak-count">0</span></div>
+          <button id="settings-btn" class="icon-button" data-screen="settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg></button>
+          <button id="logout-btn" class="icon-button"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+        </div>
+      </header>
+      <div class="study-card">
+        <div class="study-card-content">
+          <div class="due-info"><span class="due-number" id="due-count">0</span><span class="due-label">枚が復習待ち</span></div>
+          <button id="start-study-btn" class="study-button" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg><span>学習を始める</span></button>
+        </div>
+        <div class="study-card-bg"></div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-box"><span class="stat-number" id="total-cards">0</span><span class="stat-label">総カード数</span></div>
+        <div class="stat-box"><span class="stat-number" id="correct-today">0</span><span class="stat-label">今日の正解</span></div>
+        <div class="stat-box"><span class="stat-number" id="total-reviews">0</span><span class="stat-label">総復習回数</span></div>
+      </div>
+      <div class="action-grid">
+        <button class="action-card" data-screen="create"><div class="action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div><span class="action-label">カード作成</span></button>
+        <button class="action-card" data-screen="manage"><div class="action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="16" height="14" rx="2"/><path d="M6 8h8M6 12h6"/></svg></div><span class="action-label">カード管理</span></button>
+        <button class="action-card" data-screen="shared"><div class="action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></div><span class="action-label">共有カード</span></button>
+        <button class="action-card" data-screen="settings"><div class="action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg></div><span class="action-label">設定</span></button>
+      </div>
+    </div>
+
+    <!-- カード作成画面 -->
+    <div id="create-screen" class="screen">
+      <header class="sub-header"><button class="back-button" data-screen="home"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12,19 5,12 12,5"/></svg></button><h2 class="sub-title">新しいカード</h2><div style="width:40px"></div></header>
+      <div class="create-form">
+        <div class="input-group"><label>問題（表面）</label><textarea id="card-front" rows="3" placeholder="覚えたい問題や単語を入力..."></textarea></div>
+        <div class="input-group"><label>答え（裏面）</label><textarea id="card-back" rows="3" placeholder="答えや説明を入力..."></textarea></div>
+        <div class="input-group">
+          <label>画像（任意）</label>
+          <div id="image-upload" class="image-upload">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:8px;opacity:.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21,15 16,10 5,21"/></svg>
+            <p style="font-size:14px;color:rgba(255,255,255,.5)">クリックまたはドラッグで画像を追加</p>
+            <img id="image-preview" class="image-preview hidden">
+          </div>
+          <input type="file" id="image-input" accept="image/*" style="display:none">
+        </div>
+        <div class="input-group">
+          <label>カテゴリ（任意）</label>
+          <input type="text" id="card-category" placeholder="例: 英語、歴史、プログラミング">
+        </div>
+        <label class="checkbox-group">
+          <input type="checkbox" id="card-shared">
+          <span>このカードを他のユーザーと共有する</span>
+        </label>
+        <button id="save-card-btn" class="primary-button" disabled>カードを保存</button>
+      </div>
+    </div>
+
+    <!-- カード管理画面 -->
+    <div id="manage-screen" class="screen">
+      <header class="sub-header"><button class="back-button" data-screen="home"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12,19 5,12 12,5"/></svg></button><h2 class="sub-title">マイカード</h2><div style="width:40px"></div></header>
+      <div id="card-list" class="card-list"><div class="empty-state"><p>まだカードがありません</p></div></div>
+    </div>
+
+    <!-- 共有カード画面 -->
+    <div id="shared-screen" class="screen">
+      <header class="sub-header"><button class="back-button" data-screen="home"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12,19 5,12 12,5"/></svg></button><h2 class="sub-title">共有カード</h2><div style="width:40px"></div></header>
+      <div class="tabs">
+        <button class="tab active" data-tab="community">みんなのカード</button>
+        <button class="tab" data-tab="myshared">自分の共有</button>
+      </div>
+      <div id="shared-list" class="card-list"><div class="empty-state"><p>共有カードはまだありません</p></div></div>
+    </div>
+
+    <!-- 設定画面 -->
+    <div id="settings-screen" class="screen">
+      <header class="sub-header"><button class="back-button" data-screen="home"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12,19 5,12 12,5"/></svg></button><h2 class="sub-title">設定</h2><div style="width:40px"></div></header>
+      <div class="settings-section">
+        <div class="settings-title">📅 復習間隔の設定</div>
+        <p style="font-size:13px;color:rgba(255,255,255,.5);margin-bottom:16px">各回答の次回復習までの日数を設定できます</p>
+        <div class="settings-row">
+          <span class="settings-label">「もう一度」の間隔</span>
+          <div><input type="number" id="interval-again" class="settings-input" min="1" max="30" value="1"> 日</div>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">「覚えた」の間隔</span>
+          <div><input type="number" id="interval-good" class="settings-input" min="1" max="30" value="3"> 日</div>
+        </div>
+        <div class="settings-row">
+          <span class="settings-label">「簡単」の間隔</span>
+          <div><input type="number" id="interval-easy" class="settings-input" min="1" max="60" value="7"> 日</div>
+        </div>
+      </div>
+      <button id="save-settings-btn" class="primary-button">設定を保存</button>
+    </div>
+
+    <!-- 学習画面 -->
+    <div id="study-screen" class="screen study-screen">
+      <header class="study-header"><button id="quit-study-btn" class="quit-button">やめる</button><span><span id="study-current">1</span> / <span id="study-total">10</span></span></header>
+      <div class="progress-bar"><div id="study-progress" class="progress-fill" style="width:0%"></div></div>
+      <div id="flashcard-container" class="flashcard-container">
+        <div class="flashcard">
+          <img id="flashcard-image" class="flashcard-image hidden">
+          <p id="flashcard-front" class="flashcard-text">問題</p>
+          <p id="tap-hint" class="tap-hint">タップして答えを見る</p>
+          <p id="flashcard-question" class="flashcard-question hidden"></p>
+          <div id="flashcard-divider" class="flashcard-divider hidden"></div>
+          <p id="flashcard-answer" class="flashcard-answer hidden"></p>
+        </div>
+      </div>
+      <div id="answer-buttons" class="answer-buttons hidden">
+        <button class="answer-button again-button" data-quality="0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span>もう一度</span><span class="interval-hint" id="hint-again">1日後</span></button>
+        <button class="answer-button good-button" data-quality="2"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20,6 9,17 4,12"/></svg><span>覚えた</span><span class="interval-hint" id="hint-good">3日後</span></button>
+        <button class="answer-button easy-button" data-quality="3"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg><span>簡単</span><span class="interval-hint" id="hint-easy">7日後</span></button>
+      </div>
+    </div>
+
+    <!-- 完了画面 -->
+    <div id="complete-screen" class="screen complete-screen">
+      <div class="complete-content">
+        <div class="complete-icon">🎉</div>
+        <h2 class="complete-title">お疲れさまでした！</h2>
+        <div class="result-card"><div class="result-item"><span class="result-number" id="result-total">0</span><span class="result-label">カード学習</span></div><div class="result-divider"></div><div class="result-item"><span class="result-number" id="result-accuracy">0%</span><span class="result-label">正解率</span></div></div>
+        <button id="back-home-btn" class="primary-button">ホームに戻る</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast">保存しました！</div>
+
+  <script>
+    const SUPABASE_URL='https://rmexndmaqndgolqcfyqh.supabase.co';
+    const SUPABASE_ANON_KEY='sb_publishable_-RdUie8ph72WcnBavPFR5A_Of-3E6oM';
+    const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    
+    let currentUser=null,cards=[],sharedCards=[],studySession=null,showingAnswer=false;
+    let stats={totalReviews:0,correctToday:0,streakDays:0};
+    let userSettings={again:1,good:3,easy:7};
+    let selectedImage=null;
+    let currentTab='community';
+    
+    const $=id=>document.getElementById(id);
+
+    async function init(){
+      try{
+        const{data:{session}}=await db.auth.getSession();
+        if(session){currentUser=session.user;await loadUserData();showApp()}else{showLogin()}
+        db.auth.onAuthStateChange(async(e,s)=>{if(e==='SIGNED_IN'&&s){currentUser=s.user;await loadUserData();showApp()}else if(e==='SIGNED_OUT'){currentUser=null;cards=[];showLogin()}});
+      }catch(e){console.error(e);showLogin()}
+    }
+
+    function showLogin(){$('loading-screen').classList.add('hidden');$('login-screen').classList.remove('hidden');$('app-container').classList.remove('active')}
+    function showApp(){$('loading-screen').classList.add('hidden');$('login-screen').classList.add('hidden');$('app-container').classList.add('active');updateHomeScreen()}
+    function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$(id+'-screen').classList.add('active');
+      if(id==='home')updateHomeScreen();
+      if(id==='manage')updateManageScreen();
+      if(id==='shared')loadSharedCards();
+      if(id==='settings')loadSettings();
+    }
+
+    async function loginWithGoogle(){try{await db.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname}})}catch(e){alert('ログイン失敗')}}
+    async function logout(){await db.auth.signOut()}
+
+    async function loadUserData(){
+      if(!currentUser)return;
+      try{
+        const{data}=await db.from('cards').select('*').eq('user_id',currentUser.id).order('created_at',{ascending:false});
+        cards=data||[];
+        const{count}=await db.from('review_logs').select('*',{count:'exact',head:true}).eq('user_id',currentUser.id);
+        stats.totalReviews=count||0;
+        const today=new Date();today.setHours(0,0,0,0);
+        const{count:tc}=await db.from('review_logs').select('*',{count:'exact',head:true}).eq('user_id',currentUser.id).gte('quality',2).gte('reviewed_at',today.toISOString());
+        stats.correctToday=tc||0;
+        // Load settings
+        const{data:settingsData}=await db.from('user_settings').select('*').eq('user_id',currentUser.id).single();
+        if(settingsData&&settingsData.review_intervals){
+          userSettings=settingsData.review_intervals;
+        }
+      }catch(e){console.error(e)}
+    }
+
+    async function loadSharedCards(){
+      try{
+        let query;
+        if(currentTab==='community'){
+          query=db.from('cards').select('*').eq('is_shared',true).neq('user_id',currentUser.id).order('created_at',{ascending:false}).limit(50);
+        }else{
+          query=db.from('cards').select('*').eq('is_shared',true).eq('user_id',currentUser.id).order('created_at',{ascending:false});
+        }
+        const{data}=await query;
+        sharedCards=data||[];
+        updateSharedScreen();
+      }catch(e){console.error(e)}
+    }
+
+    function getDueCards(){const now=new Date();return cards.filter(c=>!c.next_review_date||new Date(c.next_review_date)<=now)}
+
+    function updateHomeScreen(){
+      const name=currentUser?.user_metadata?.name||currentUser?.user_metadata?.full_name||currentUser?.email?.split('@')[0]||'ユーザー';
+      $('user-name').textContent=name+'さん';
+      const due=getDueCards();
+      $('due-count').textContent=due.length;
+      $('total-cards').textContent=cards.length;
+      $('correct-today').textContent=stats.correctToday;
+      $('total-reviews').textContent=stats.totalReviews;
+      $('start-study-btn').disabled=due.length===0;
+    }
+
+    function updateManageScreen(){
+      const list=$('card-list');
+      if(!cards.length){list.innerHTML='<div class="empty-state"><p>まだカードがありません</p></div>';return}
+      list.innerHTML=cards.map(c=>{
+        const thumb=c.image_url?`<img src="${c.image_url}" class="card-thumb">`:'';
+        const badges=[];
+        if(c.category)badges.push(`<span class="badge">${esc(c.category)}</span>`);
+        if(c.is_shared)badges.push('<span class="badge shared">共有中</span>');
+        return `<div class="card-item"><div style="display:flex;align-items:center;flex:1;min-width:0">${thumb}<div class="card-item-content"><p class="card-front">${esc(c.front)}</p><p class="card-back">${esc(c.back)}</p>${badges.length?'<div class="card-badges">'+badges.join('')+'</div>':''}</div></div><button class="delete-button" data-id="${c.id}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6M8,6V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2V6"/></svg></button></div>`;
+      }).join('');
+      list.querySelectorAll('.delete-button').forEach(b=>b.onclick=e=>{e.stopPropagation();deleteCard(b.dataset.id)});
+    }
+
+    function updateSharedScreen(){
+      const list=$('shared-list');
+      if(!sharedCards.length){list.innerHTML='<div class="empty-state"><p>共有カードはまだありません</p></div>';return}
+      list.innerHTML=sharedCards.map(c=>{
+        const thumb=c.image_url?`<img src="${c.image_url}" class="card-thumb">`:'';
+        const badges=[];
+        if(c.category)badges.push(`<span class="badge">${esc(c.category)}</span>`);
+        return `<div class="card-item shared-card"><div style="display:flex;align-items:center;flex:1;min-width:0">${thumb}<div class="card-item-content"><p class="card-front">${esc(c.front)}</p><p class="card-back">${esc(c.back)}</p>${badges.length?'<div class="card-badges">'+badges.join('')+'</div>':''}</div></div>${currentTab==='community'?`<button class="primary-button" style="padding:8px 16px;font-size:12px" onclick="copyCard('${c.id}')">追加</button>`:''}</div>`;
+      }).join('');
+    }
+
+    async function copyCard(id){
+      const card=sharedCards.find(c=>c.id===id);
+      if(!card)return;
+      try{
+        const{data,error}=await db.from('cards').insert({
+          user_id:currentUser.id,
+          front:card.front,
+          back:card.back,
+          image_url:card.image_url,
+          category:card.category,
+          interval:0,ease_factor:2.5,repetitions:0,is_shared:false
+        }).select().single();
+        if(error)throw error;
+        cards.unshift(data);
+        showToast('カードを追加しました！');
+        updateHomeScreen();
+      }catch(e){alert('追加失敗')}
+    }
+
+    function loadSettings(){
+      $('interval-again').value=userSettings.again||1;
+      $('interval-good').value=userSettings.good||3;
+      $('interval-easy').value=userSettings.easy||7;
+    }
+
+    async function saveSettings(){
+      userSettings={
+        again:parseInt($('interval-again').value)||1,
+        good:parseInt($('interval-good').value)||3,
+        easy:parseInt($('interval-easy').value)||7
+      };
+      try{
+        await db.from('user_settings').upsert({
+          user_id:currentUser.id,
+          review_intervals:userSettings,
+          updated_at:new Date().toISOString()
+        });
+        showToast('設定を保存しました！');
+      }catch(e){alert('保存失敗')}
+    }
+
+    async function saveCard(){
+      const front=$('card-front').value.trim();
+      const back=$('card-back').value.trim();
+      const category=$('card-category').value.trim();
+      const isShared=$('card-shared').checked;
+      if(!front||!back)return;
+
+      let imageUrl=null;
+      if(selectedImage){
+        try{
+          const fileName=`${currentUser.id}/${Date.now()}.${selectedImage.name.split('.').pop()}`;
+          const{data:uploadData,error:uploadError}=await db.storage.from('card-images').upload(fileName,selectedImage);
+          if(uploadError)throw uploadError;
+          const{data:{publicUrl}}=db.storage.from('card-images').getPublicUrl(fileName);
+          imageUrl=publicUrl;
+        }catch(e){console.error('Image upload failed:',e)}
+      }
+
+      try{
+        const{data,error}=await db.from('cards').insert({
+          user_id:currentUser.id,front,back,
+          image_url:imageUrl,
+          category:category||null,
+          is_shared:isShared,
+          interval:0,ease_factor:2.5,repetitions:0
+        }).select().single();
+        if(error)throw error;
+        cards.unshift(data);
+        $('card-front').value='';$('card-back').value='';$('card-category').value='';
+        $('card-shared').checked=false;
+        selectedImage=null;
+        $('image-preview').classList.add('hidden');
+        $('image-upload').classList.remove('has-image');
+        $('save-card-btn').disabled=true;
+        showToast('保存しました！');
+        updateHomeScreen();
+      }catch(e){alert('保存失敗: '+e.message)}
+    }
+
+    async function deleteCard(id){
+      try{await db.from('cards').delete().eq('id',id);cards=cards.filter(c=>c.id!==id);updateManageScreen();updateHomeScreen()}catch(e){alert('削除失敗')}
+    }
+
+    function startStudy(){
+      const due=getDueCards();if(!due.length)return;
+      studySession={cards:[...due].sort(()=>Math.random()-.5),currentIndex:0,correct:0,total:due.length};
+      showingAnswer=false;showScreen('study');updateStudyScreen();
+    }
+
+    function updateStudyScreen(){
+      const c=studySession.cards[studySession.currentIndex];
+      $('study-current').textContent=studySession.currentIndex+1;
+      $('study-total').textContent=studySession.total;
+      $('study-progress').style.width=(studySession.currentIndex/studySession.total*100)+'%';
+      
+      // Update interval hints
+      $('hint-again').textContent=userSettings.again+'日後';
+      $('hint-good').textContent=userSettings.good+'日後';
+      $('hint-easy').textContent=userSettings.easy+'日後';
+
+      if(!showingAnswer){
+        if(c.image_url){$('flashcard-image').src=c.image_url;$('flashcard-image').classList.remove('hidden')}
+        else{$('flashcard-image').classList.add('hidden')}
+        $('flashcard-front').textContent=c.front;$('flashcard-front').classList.remove('hidden');$('tap-hint').classList.remove('hidden');
+        $('flashcard-question').classList.add('hidden');$('flashcard-divider').classList.add('hidden');$('flashcard-answer').classList.add('hidden');$('answer-buttons').classList.add('hidden');
+      }else{
+        $('flashcard-front').classList.add('hidden');$('tap-hint').classList.add('hidden');
+        $('flashcard-question').textContent=c.front;$('flashcard-question').classList.remove('hidden');
+        $('flashcard-divider').classList.remove('hidden');$('flashcard-answer').textContent=c.back;$('flashcard-answer').classList.remove('hidden');$('answer-buttons').classList.remove('hidden');
+      }
+    }
+
+    function showAnswer(){if(showingAnswer)return;showingAnswer=true;updateStudyScreen()}
+
+    function calcNext(card,q){
+      let interval,ef=card.ease_factor||2.5,r=card.repetitions||0;
+      if(q===0){r=0;interval=userSettings.again}
+      else if(q===2){interval=r===0?userSettings.good:Math.round((card.interval||1)*ef);r++}
+      else if(q===3){interval=r===0?userSettings.easy:Math.round((card.interval||1)*ef*1.5);r++}
+      ef=Math.max(1.3,ef+(.1-(3-q)*(.08+(3-q)*.02)));
+      const d=new Date();d.setDate(d.getDate()+interval);
+      return{interval,ease_factor:ef,repetitions:r,next_review_date:d.toISOString(),last_review_date:new Date().toISOString()};
+    }
+
+    async function handleAnswer(q){
+      const c=studySession.cards[studySession.currentIndex],u=calcNext(c,q);
+      try{await db.from('cards').update(u).eq('id',c.id);await db.from('review_logs').insert({user_id:currentUser.id,card_id:c.id,quality:q})}catch(e){console.error(e)}
+      const idx=cards.findIndex(x=>x.id===c.id);if(idx>-1)cards[idx]={...cards[idx],...u};
+      if(q>=2){studySession.correct++;stats.correctToday++}stats.totalReviews++;
+      if(studySession.currentIndex<studySession.cards.length-1){studySession.currentIndex++;showingAnswer=false;updateStudyScreen()}
+      else{$('result-total').textContent=studySession.total;$('result-accuracy').textContent=Math.round(studySession.correct/studySession.total*100)+'%';showScreen('complete')}
+    }
+
+    function showToast(m){const t=$('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000)}
+    function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+    // Event listeners
+    $('google-login-btn').onclick=loginWithGoogle;
+    $('logout-btn').onclick=logout;
+    $('start-study-btn').onclick=startStudy;
+    $('quit-study-btn').onclick=()=>showScreen('home');
+    $('back-home-btn').onclick=()=>{studySession=null;showScreen('home')};
+    $('save-settings-btn').onclick=saveSettings;
+
+    document.querySelectorAll('[data-screen]').forEach(b=>b.onclick=()=>showScreen(b.dataset.screen));
+    document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      currentTab=t.dataset.tab;
+      loadSharedCards();
+    });
+
+    const cf=$('card-front'),cb=$('card-back'),sb=$('save-card-btn');
+    function validate(){sb.disabled=!cf.value.trim()||!cb.value.trim()}
+    cf.oninput=validate;cb.oninput=validate;sb.onclick=saveCard;
+
+    // Image upload
+    const imageUpload=$('image-upload'),imageInput=$('image-input'),imagePreview=$('image-preview');
+    imageUpload.onclick=()=>imageInput.click();
+    imageInput.onchange=e=>{
+      const file=e.target.files[0];
+      if(file){
+        selectedImage=file;
+        const reader=new FileReader();
+        reader.onload=ev=>{imagePreview.src=ev.target.result;imagePreview.classList.remove('hidden');imageUpload.classList.add('has-image')};
+        reader.readAsDataURL(file);
+      }
+    };
+
+    $('flashcard-container').onclick=showAnswer;
+    document.querySelectorAll('.answer-button').forEach(b=>b.onclick=()=>handleAnswer(+b.dataset.quality));
+
+    init();
+  </script>
+</body>
+</html>
